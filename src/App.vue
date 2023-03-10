@@ -1,47 +1,98 @@
-<script setup>
-import HelloWorld from './components/HelloWorld.vue'
-import TheWelcome from './components/TheWelcome.vue'
-</script>
-
 <template>
-  <header>
-    <img alt="Vue logo" class="logo" src="./assets/logo.svg" width="125" height="125" />
-
-    <div class="wrapper">
-      <HelloWorld msg="You did it!" />
+  <div class="app">
+    <div class="row">
+      <div class="drop-zone" @drop="onDrop($event, 1)" @dragenter.prevent @dragover.prevent>
+        <div class="drag-el" v-for="item in listOne" :key="item.title" draggable @dragstart="startDrag($event, item)">
+          <span>{{ item.title }}</span>
+        </div>
+      </div>
+      <div class="drop-zone" @drop="onDrop($event, 2)" @dragenter.prevent @dragover.prevent>
+        <div class="drag-el" v-for="item in listTwo" :key="item.title" draggable @dragstart="startDrag($event, item)">
+          <span>{{ item.title }}</span>
+        </div>
+      </div>
     </div>
-  </header>
 
-  <main>
-    <TheWelcome />
-  </main>
+    <div class="row">
+      <DragAndDrop></DragAndDrop>
+      <!-- <DragAndDrop2></DragAndDrop2> -->
+    </div>
+  </div>
 </template>
 
+<script>
+import { defineComponent } from 'vue';
+import DragAndDrop from './components/DragAndDrop.vue';
+// import DragAndDrop2 from './components/DragAndDrop2.vue';
+
+export default defineComponent({
+  name: 'App',
+  components: {
+    DragAndDrop,
+    // DragAndDrop2
+  },
+  data() {
+    return {
+      items: [
+        {
+          id: 0,
+          title: 'Item A',
+          list: 1,
+        },
+        {
+          id: 1,
+          title: 'Item B',
+          list: 1,
+        },
+        {
+          id: 2,
+          title: 'Item C',
+          list: 2,
+        },
+      ],
+    }
+  },
+  computed: {
+    listOne() {
+      return this.items.filter((item) => item.list === 1)
+    },
+    listTwo() {
+      return this.items.filter((item) => item.list === 2)
+    },
+  },
+  methods: {
+    startDrag(evt, item) {
+      evt.dataTransfer.dropEffect = 'move'
+      evt.dataTransfer.effectAllowed = 'move'
+      evt.dataTransfer.setData('itemID', item.id)
+    },
+    onDrop(evt, list) {
+      const itemID = evt.dataTransfer.getData('itemID')
+      const item = this.items.find((item) => item.id == itemID)
+      item.list = list
+    },
+  },
+})
+</script>
+
 <style scoped>
-header {
-  line-height: 1.5;
+.row {
+  display: flex;
+  width: 100%;
+  gap: 10px;
 }
 
-.logo {
-  display: block;
-  margin: 0 auto 2rem;
+.drop-zone {
+  background-color: #eee;
+  margin-bottom: 10px;
+  padding: 10px;
+  flex: 1;
 }
 
-@media (min-width: 1024px) {
-  header {
-    display: flex;
-    place-items: center;
-    padding-right: calc(var(--section-gap) / 2);
-  }
-
-  .logo {
-    margin: 0 2rem 0 0;
-  }
-
-  header .wrapper {
-    display: flex;
-    place-items: flex-start;
-    flex-wrap: wrap;
-  }
+.drag-el {
+  background-color: #fff;
+  margin-bottom: 10px;
+  padding: 5px;
+  pointer-events: fill;
 }
 </style>

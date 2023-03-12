@@ -9,7 +9,7 @@
                     <div class="widget-item-content">
                         <span class="widget-item-content__label">{{ item.label }}</span>
                         <span class="widget-item-content__size">Size: {{ item.size }}</span>
-                        <button class="widget-item-content__buttonDrag">Icon</button>
+                        <button class="widget-item-content__buttonDrag">Drag</button>
                     </div>
                 </div>
             </div>
@@ -21,13 +21,18 @@
                     `size-${item.size}`
                 ]" :draggable="true" @dragstart="handleDragFromGrid($event, __retrieveBlockData(item, index))"
                     :data="JSON.stringify(__retrieveBlockData(item, index))">
-                    <button class="widget-block__buttonDrag">Icon</button>
-                    <span v-if="item === null">Empty</span>
-                    <span v-else>{{ item.label }}</span>
+                    <div class="widget-block-content">
+                        <button class="widget-block__buttonDrag">Drag</button>
+                        <button class="widget-block__buttonRemove" @click="handleRemoveBlock(index)">-</button>
+                        <span v-if="item === null">Empty</span>
+                        <span v-else>{{ item.label }}</span>
+                    </div>
                 </div>
             </div>
 
-            <button @click="handleAddMoreRow">Add more row</button>
+            <button @click="handleToggleRow" class="button-add-more">
+                {{ !showMoreRow ? 'Add more row' : 'Hide row' }}
+            </button>
         </div>
     </div>
 </template>
@@ -39,13 +44,10 @@ const createWidget = (key, label, size, position) => {
     return { key, label, size, position }
 }
 
-const preventSelect = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    e.cancelBubble = true;
-    e.returnValue = false;
-
-    return false
+const swapPosition = (arr, sourceIndex, targetIndex) => {
+    const temp = arr[sourceIndex]
+    arr[sourceIndex] = arr[targetIndex]
+    arr[targetIndex] = temp
 }
 
 const DATA_TRANSFER_KEY = 'WIDGET'
@@ -79,7 +81,7 @@ export default defineComponent({
         slotCount() {
             if (this.showMoreRow) return 12
             return 8
-        }
+        },
     },
     methods: {
         handleClick(event) {
@@ -103,17 +105,16 @@ export default defineComponent({
             const widgetStringified = event.dataTransfer.getData(DATA_TRANSFER_KEY)
             const widgetBlock = event.target.closest('.widget-block')
 
+            if (!widgetBlock) {
+                alert('drop outside')
+                return
+            }
+
+            const sourceData = JSON.parse(widgetStringified)
+
             // moving from list
             if (this.movingFromList) {
                 console.log('moving from list')
-                // prevent drop oustide
-                if (!widgetBlock) {
-                    alert('drop outside')
-                    return
-                }
-
-                const sourceData = JSON.parse(widgetStringified)
-                const targetData = JSON.parse(widgetBlock.getAttribute('data'))
 
                 // prevent double add
                 if (this.listWidgetBlock.some(item => item?.key === sourceData.key)) {
@@ -148,12 +149,37 @@ export default defineComponent({
                 this.listWidgetBlock.splice(firstAvailableSlotIndex, sourceData.size, {
                     ...sourceData,
                     position: firstAvailableSlotIndex,
-                })
+                    size: sourceData.size
+                }) // replace first empty slot with source widget
+
+                this.listWidgetBlock = this.listWidgetBlock.map((o, i) => ({ ...o, position: i })) // re-indexing position
+
+                console.log(toRaw(this.listWidgetBlock))
             }
 
             // moving from grid
             else {
                 console.log('moving from grid')
+                const targetData = JSON.parse(widgetBlock.getAttribute('data'))
+
+                if (targetData.size !== sourceData.size) {
+                    alert(`item's size must be the same size`)
+                    return
+                }
+
+                if (!targetData.key) {
+                    // when swap with empty slot
+                    /** find the first available slot and replace it with the source widget */
+                    const firstAvailableSlotIndex = this.listWidgetBlock.findIndex(item => !item.key)
+                    swapPosition(this.listWidgetBlock, firstAvailableSlotIndex, sourceData.position)
+                    this.listWidgetBlock.splice(sourceData.position, 1)
+                    this.listWidgetBlock.push(createWidget('', 'Empty', 1, this.listWidgetBlock.length))
+                    console.log(this.listWidgetBlock)
+                    return
+                }
+
+
+                swapPosition(this.listWidgetBlock, targetData.position, sourceData.position)
             }
         },
 
@@ -177,8 +203,16 @@ export default defineComponent({
             console.log('@handleMouseDownDragIcon', event)
             event.stopPropagation()
         },
-        handleAddMoreRow() {
-            this.showMoreRow = true
+        handleRemoveBlock(index) {
+            const target = this.listWidgetBlock[index]
+            this.listWidgetBlock.splice(index, 1)
+            console.log('target.size', target.size)
+            for (let i = 0; i < target.size; i++) {
+                this.listWidgetBlock.push(createWidget('', 'Empty', 1, target.position + i))
+            }
+        },
+        handleToggleRow() {
+            this.showMoreRow = !this.showMoreRow
         },
 
         // utilities
@@ -187,17 +221,21 @@ export default defineComponent({
             const size = item === null ? 1 : item.size
             const label = item === null ? 'Empty' : item.label
 
-            return {
-                key,
-                size,
-                label,
-                position: index,
-            }
+            return { key, size, label, position: index }
         }
     },
     watch: {
-        listWidgetBlock(newVal) {
-            console.log('listWidgetBlock', newVal)
+        showMoreRow(newVal) {
+            if (newVal) {
+                console.log('showMoreRow')
+                const lastEl = this.listWidgetBlock.slice(-1)
+                for (let i = 1; i <= 4; i++) {
+                    this.listWidgetBlock.push(createWidget('', 'Empty', 1, lastEl + i))
+                }
+            }
+            else {
+                // this.listWidgetBlock
+            }
         }
     },
     created() {
@@ -270,6 +308,10 @@ export default defineComponent({
     flex: 1;
 }
 
+.grid-area .button-add-more {
+    margin-top: 1rem;
+}
+
 .grid-layout {
     flex: 1;
     /* gap: 10px; */
@@ -279,7 +321,6 @@ export default defineComponent({
 
 .widget-block {
     height: 120px;
-    border: 1px solid black;
     position: relative;
     flex-shrink: 0;
     flex-grow: 0;
@@ -314,7 +355,24 @@ export default defineComponent({
     justify-content: center;
 }
 
+
+.widget-block-content {
+    border: 1px solid black;
+    width: calc(100% - 5px);
+    height: calc(100% - 5px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+
 .widget-block__buttonDrag {
+    position: absolute;
+    right: 2rem;
+    top: 0.5rem
+}
+
+.widget-block__buttonRemove {
     position: absolute;
     right: 0.5rem;
     top: 0.5rem
